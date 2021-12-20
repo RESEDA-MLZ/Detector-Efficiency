@@ -1,0 +1,67 @@
+Absorption für Neutronen der Wellenlänge lambda [Angström] in Materialien der Dichte rho [g/cm^3], der Molgewicht a [g/mol] und mit thermischem Absorptions-Wirkungsquerschnitt sigma [barn] sowie dem 10-B-Anreicherungsgrad iso [%].
+na = 6.022045*10^23;
+mu[lambda_, rho_, a_, sigma_, iso_] = 
+    rho * na/a * sigma*iso/100*10^(-24) / 10000*lambda/1.8;
+
+
+Entkommwahrscheinlichkeit aus einer Neutronen-absorbierenden Schicht der Dicke d [um], nach der Eindringtiefe y [um] und dem Eindringwinkel alpha sowie in Abhängigkeit der Reichweite r [um] der Teilchen in dieser Schicht.	
+Pvor[d_, y_, r_, alpha_] = (1 - (d - y*Cos[alpha])/r)/2;
+Prück[y_, r_, alpha_] = (1 - y*Cos[alpha]/r)/2;
+
+
+Effizienz einer 10-B-Schicht in Abhängigkeit der Reichweite r [um] der Teilchen in dieser Schicht, ihrem unteren Ende u [um] und ihrem oberen Ende o [um] sowie der Wellenlänge lambda [Angström] und dem Einfallswinkel alpha sowie dem 10-B-Anreicherungsgrad iso [%].
+B10SchraegVor[d_, u_, o_, r_, lambda_, alpha_, iso_] = 
+    Integrate[
+      mu[lambda, 2.34, 10.81, 3837., iso]*
+        Exp[-mu[lambda, 2.34, 10.81, 3837., iso]*y]*Pvor[d, y, r, alpha], {y, u, o}];
+		
+B10SchraegRück[u_, o_, r_, lambda_, alpha_, iso_] = 
+    Integrate[
+      mu[lambda, 2.34, 10.81, 3837., iso]*
+        Exp[-mu[lambda, 2.34, 10.81, 3837., iso]*y]*Prück[y, r, alpha], {y, u, o}];
+
+	
+Effizienz einer 10-B-Schicht in Abhängigkeit der Reichweite r [um] der Teilchen in dieser Schicht, ihrer Dicke d [um] sowie der Wellenlänge lambda [Angström]  und dem Einfallswinkel alpha sowie dem 10-B-Anreicherungsgrad iso [%].	  
+B10EinfachSchraegVor = 
+    Function[{d, r, lambda, alpha, iso}, 
+      If [ (d > r), 
+        B10SchraegVor[d, (d - r)/Cos[alpha], d/Cos[alpha], r, lambda, alpha, 
+          iso], B10SchraegVor[d, 0., d/Cos[alpha], r, lambda, alpha, iso] ] ];
+		  
+B10EinfachSchraegRück = 
+    Function[{d, r, lambda, alpha, iso}, 
+      If [ (d > r), B10SchraegRück[0., r/Cos[alpha], r, lambda, alpha, iso], 
+        B10SchraegRück[0., d/Cos[alpha], r, lambda, alpha, iso] ] ];			  
+
+		
+Gesamt-Effizienz aller effektiven Prozesse in einer 10-B-Schicht in Abhängigkeit der Schichtdicke d [um] sowie der Wellenlänge lambda [Angström]  und dem Einfallswinkel eta [°] sowie dem 10-B-Anreicherungsgrad iso [%].		
+B10EffSchraegVor = 
+    Function[{d, lambda, eta, iso}, 
+      0.94*(B10EinfachSchraegVor[d, 3.16, lambda, 90Degree - eta, iso] + 
+              B10EinfachSchraegVor[d, 1.53, lambda, 90Degree - eta, iso]) + 
+        0.06*(B10EinfachSchraegVor[d, 3.92, lambda, 90Degree - eta, iso] + 
+              B10EinfachSchraegVor[d, 1.73, lambda, 90Degree - eta, iso]) ];
+
+B10EffSchraegRück = 
+    Function[{d, lambda, eta, iso}, 
+      0.94*(B10EinfachSchraegRück[d, 3.16, lambda, 90Degree - eta, iso] + 
+              B10EinfachSchraegRück[d, 1.53, lambda, 90Degree - eta, iso]) + 
+        0.06*(B10EinfachSchraegRück[d, 3.92, lambda, 90Degree - eta, iso] + 
+              B10EinfachSchraegRück[d, 1.73, lambda, 90Degree - eta, iso]) ];
+
+
+Rest-Intensität an Neutronen der Wellenlänge lambda [Angström] nach einer B-Schicht der Schichtdicke d [um] und und dem 10-B-Anreicherungsgrad iso [%] unter dem Einfallswinkel eta [°].		
+RestIB10 = 
+  Function[{d, lambda, eta, iso}, 
+   Exp[-mu[lambda, 2.34, 10.81, 3837., iso]*d/Cos[90 Degree - eta]]];	  
+
+
+Effizienz eines CASCADE-M Detektors mit sechs 10-Bor-Schichten in Abhängigkeit der Schichtdicke auf der GEM dGem [um], der Schichtdicke beider Drifts dDrift [um] (wobei die hintere doppelt so dick ausgeführt wurde), der Neutronenwellenlänge lambda [Angström] unter dem Einfallswinkel eta [°].			  
+Mieze6 = Function[{dgem, ddrift, lambda, eta, iso}, B10EffSchraegVor[ddrift, lambda, eta, iso] + 
+    		RestIB10[ddrift, lambda, eta, iso] * B10EffSchraegRück[dgem, lambda, eta, iso] +                     
+    		RestIB10[ddrift + dgem, lambda, eta, iso] * B10EffSchraegRück[dgem, lambda, eta, iso] +   (*Ende des oberen Stacks *)
+    		RestIB10[ddrift + 2*dgem, lambda, eta, iso] * B10EffSchraegVor[dgem, lambda, eta, iso] +
+        	RestIB10[ddrift + 3*dgem, lambda, eta, iso] * B10EffSchraegVor[dgem, lambda, eta, iso] +
+    		RestIB10[ddrift + 4*dgem, lambda, eta, iso] * B10EffSchraegRück[2*ddrift, lambda, eta, iso] 
+   	];
+			  
